@@ -56,7 +56,11 @@ class TestNaclCryptoBox < Test::Unit::TestCase
     mangled = "#{crypted[0..13]}#{char}#{crypted[15..-1]}"
     assert_not_equal crypted, mangled
     assert_raise(NaCl::OpenError) do
-      p NaCl.crypto_box_open(mangled, @nonce, @pub_a, @sec_b)
+      NaCl.crypto_box_open(mangled, @nonce, @pub_a, @sec_b)
     end
+  end
+
+  def test_constants
+    assert_equal 24, NaCl::BOX_NONCE_LENGTH
   end
 end

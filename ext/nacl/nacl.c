@@ -167,6 +167,7 @@ void Init_nacl() {
     rb_define_module_function(NaCl, "crypto_box_keypair", method_crypto_box_keypair, 0);
     rb_define_module_function(NaCl, "crypto_box", method_crypto_box, 4);
     rb_define_module_function(NaCl, "crypto_box_open", method_crypto_box_open, 4);
+    rb_define_const(NaCl, "BOX_NONCE_LENGTH", INT2FIX(crypto_box_NONCEBYTES));
 
     rb_define_module_function(NaCl, "crypto_sign_keypair", method_crypto_sign_keypair, 0);
     rb_define_module_function(NaCl, "crypto_sign", method_crypto_sign, 2);
