@@ -1,10 +1,13 @@
 #include <ruby.h>
 #include <crypto_box.h>
+#include <crypto_sign.h>
 #include <crypto_hash.h>
 #include <crypto_hash_sha256.h>
 #include <crypto_hash_sha512.h>
 
-VALUE NaCl = Qnil, BoxOpenError = Qnil;
+VALUE NaCl = Qnil, OpenError = Qnil;
+
+#define CHECK_STRING_LENGTH(str, len) do { Check_Type(str, T_STRING); if (RSTRING_LEN(str) != len) rb_raise(rb_eArgError, #str " must be %d bytes long", len); } while (0)
 
 unsigned long long allocate_and_prepend_zeros(VALUE source, unsigned long long padding_len, char **padded, char **result) {
     unsigned long long mlen = RSTRING_LEN(source) + padding_len;
@@ -45,11 +48,9 @@ VALUE method_crypto_box(VALUE self, VALUE message, VALUE nonce, VALUE pk, VALUE 
 
     Check_Type(message, T_STRING);
     Check_Type(nonce, T_STRING);
-    if (RSTRING_LEN(nonce) != crypto_box_NONCEBYTES) rb_raise(rb_eArgError, "nonce must be %d bytes long", crypto_box_NONCEBYTES);
-    Check_Type(pk, T_STRING);
-    if (RSTRING_LEN(pk) != crypto_box_PUBLICKEYBYTES) rb_raise(rb_eArgError, "public_key must be %d bytes long", crypto_box_PUBLICKEYBYTES);
-    Check_Type(sk, T_STRING);
-    if (RSTRING_LEN(pk) != crypto_box_SECRETKEYBYTES) rb_raise(rb_eArgError, "secret_key must be %d bytes long", crypto_box_SECRETKEYBYTES);
+    CHECK_STRING_LENGTH(nonce, crypto_box_NONCEBYTES);
+    CHECK_STRING_LENGTH(pk, crypto_box_PUBLICKEYBYTES);
+    CHECK_STRING_LENGTH(sk, crypto_box_SECRETKEYBYTES);
 
     mlen = allocate_and_prepend_zeros(message, crypto_box_ZEROBYTES, &padded_message, &result);
     n = crypto_box(result, padded_message, mlen, RSTRING_PTR(nonce), RSTRING_PTR(pk), RSTRING_PTR(sk));
@@ -70,23 +71,72 @@ VALUE method_crypto_box_open(VALUE self, VALUE ciphertext, VALUE nonce, VALUE pk
 
     Check_Type(ciphertext, T_STRING);
     if (RSTRING_LEN(ciphertext) < crypto_box_ZEROBYTES - crypto_box_BOXZEROBYTES) rb_raise(rb_eArgError, "ciphertext must be at least %d bytes long", crypto_box_ZEROBYTES - crypto_box_BOXZEROBYTES);
-    Check_Type(nonce, T_STRING);
-    if (RSTRING_LEN(nonce) != crypto_box_NONCEBYTES) rb_raise(rb_eArgError, "nonce must be %d bytes long", crypto_box_NONCEBYTES);
-    Check_Type(pk, T_STRING);
-    if (RSTRING_LEN(pk) != crypto_box_PUBLICKEYBYTES) rb_raise(rb_eArgError, "public_key must be %d bytes long", crypto_box_PUBLICKEYBYTES);
-    Check_Type(sk, T_STRING);
-    if (RSTRING_LEN(pk) != crypto_box_SECRETKEYBYTES) rb_raise(rb_eArgError, "secret_key must be %d bytes long", crypto_box_SECRETKEYBYTES);
+    CHECK_STRING_LENGTH(nonce, crypto_box_NONCEBYTES);
+    CHECK_STRING_LENGTH(pk, crypto_box_PUBLICKEYBYTES);
+    CHECK_STRING_LENGTH(sk, crypto_box_SECRETKEYBYTES);
 
     mlen = allocate_and_prepend_zeros(ciphertext, crypto_box_BOXZEROBYTES, &padded_ciphertext, &result);
     n = crypto_box_open(result, padded_ciphertext, mlen, RSTRING_PTR(nonce), RSTRING_PTR(pk), RSTRING_PTR(sk));
 
     if (n == 0) return_value = rb_str_new(result + crypto_box_ZEROBYTES, mlen - crypto_box_ZEROBYTES);
     memset(result, 0, mlen);
+    free(padded_ciphertext);
     free(result);
-    if (n != 0) rb_raise(BoxOpenError, "crypto_box_open failed");
+    if (n != 0) rb_raise(OpenError, "crypto_box_open failed");
     return return_value;
 }
 
+/**********************************************************************************/
+
+VALUE method_crypto_sign_keypair(VALUE self) {
+    unsigned char pk[crypto_sign_PUBLICKEYBYTES];
+    unsigned char sk[crypto_sign_SECRETKEYBYTES];
+    VALUE keys[2];
+
+    crypto_sign_keypair(pk, sk);
+    keys[0] = rb_str_new(pk, crypto_sign_PUBLICKEYBYTES);
+    keys[1] = rb_str_new(sk, crypto_sign_SECRETKEYBYTES);
+    return rb_ary_new4(2, keys);
+}
+
+VALUE method_crypto_sign(VALUE self, VALUE message, VALUE sk) {
+    char *result;
+    VALUE return_value;
+    unsigned long long smlen;
+
+    Check_Type(message, T_STRING);
+    CHECK_STRING_LENGTH(sk, crypto_sign_SECRETKEYBYTES);
+
+    result = (char *)malloc(RSTRING_LEN(message) + crypto_sign_BYTES);
+    if (result == NULL) rb_raise(rb_eNoMemError, "out of memory");
+
+    crypto_sign(result, &smlen, RSTRING_PTR(message), RSTRING_LEN(message), RSTRING_PTR(sk));
+
+    return_value = rb_str_new(result, smlen);
+    free(result);
+    return return_value;
+}
+
+VALUE method_crypto_sign_open(VALUE self, VALUE signed_message, VALUE pk) {
+    char *result;
+    VALUE return_value;
+    unsigned long long mlen;
+    int n;
+
+    Check_Type(signed_message, T_STRING);
+    if (RSTRING_LEN(signed_message) == 0) rb_raise(OpenError, "crypto_sign_open failed");
+    CHECK_STRING_LENGTH(pk, crypto_sign_PUBLICKEYBYTES);
+
+    result = (char *)malloc(RSTRING_LEN(signed_message));
+    if (result == NULL) rb_raise(rb_eNoMemError, "out of memory");
+
+    n = crypto_sign_open(result, &mlen, RSTRING_PTR(signed_message), RSTRING_LEN(signed_message), RSTRING_PTR(pk));
+
+    if (n == 0) return_value = rb_str_new(result, mlen);
+    free(result);
+    if (n != 0) rb_raise(OpenError, "crypto_sign_open failed");
+    return return_value;
+}
 
 /**********************************************************************************/
 
@@ -118,9 +168,13 @@ void Init_nacl() {
     rb_define_module_function(NaCl, "crypto_box", method_crypto_box, 4);
     rb_define_module_function(NaCl, "crypto_box_open", method_crypto_box_open, 4);
 
+    rb_define_module_function(NaCl, "crypto_sign_keypair", method_crypto_sign_keypair, 0);
+    rb_define_module_function(NaCl, "crypto_sign", method_crypto_sign, 2);
+    rb_define_module_function(NaCl, "crypto_sign_open", method_crypto_sign_open, 2);
+
     rb_define_module_function(NaCl, "crypto_hash", method_crypto_hash, 1);
     rb_define_module_function(NaCl, "crypto_hash_sha256", method_crypto_hash_sha256, 1);
     rb_define_module_function(NaCl, "crypto_hash_sha512", method_crypto_hash_sha512, 1);
 
-    BoxOpenError = rb_define_class("NaCl::BoxOpenError", rb_eStandardError);
+    OpenError = rb_define_class_under(NaCl, "OpenError", rb_eStandardError);
 }

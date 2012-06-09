@@ -8,3 +8,6 @@ mkmf.log
 *.dSYM
 Makefile
 *.gem
+/.rbenv-version
+/pkg/
+/tmp/
