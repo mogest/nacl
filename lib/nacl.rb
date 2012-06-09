@@ -1,0 +1,1 @@
+require 'nacl/nacl'

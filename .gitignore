@@ -1,0 +1,10 @@
+.*.swp
+.swp
+.DS_Store
+mkmf.log
+*.o
+*.bundle
+*.so
+*.dSYM
+Makefile
+*.gem

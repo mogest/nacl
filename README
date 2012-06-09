@@ -1,0 +1,5 @@
+The beginnings of a library that wraps djb's NaCl "networking and cryptography" library.
+
+Find out more about that project at http://nacl.cace-project.eu/.
+
+This wrapper library licensed under the MIT licence.  Copyright 2012 Roger Nesbitt.
