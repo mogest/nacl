@@ -1,0 +1,73 @@
+= NaCl
+
+A library that wraps part of djb's NaCl "networking and cryptography" library.
+
+Find out more about that project at http://nacl.cace-project.eu/.
+
+== Prerequisites
+
+This library requires MRI Ruby 1.8 or 1.9.  It should work anywhere where NaCl compiles (most UNIXes).
+
+You must first install the NaCl C library before installing the gem.  If you use homebrew on OS X, this is as simple as:
+
+  brew install nacl
+
+== Install
+
+  gem install nacl
+
+== How To Use
+
+=== Public-key Authenticated Encryption
+
+Want to provide <b>authenticated encryption</b>?  Easy:
+
+  alice_pub, alice_sec = NaCl.crypto_box_keypair
+  bob_pub, bob_sec = NaCl.crypto_box_keypair
+
+  # Alice and Bob exchange their public keys.
+  # Now Alice can make a message for Bob:
+
+  nonce = SecureRandom.random_bytes(NaCl::BOX_NONCE_LENGTH)
+  ciphertext = NaCl.crypto_box("Meet me at the park at midnight", nonce, bob_pub, alice_sec)
+
+  # Alice then sends [ciphertext, nonce] to Bob and he can decrypt:
+
+  NaCl.crypto_box_open(ciphertext, nonce, alice_pub, bob_sec) # => "Meet me at the park at midnight"
+
+=== Public-key Authentication
+
+Just want to sign the text, but not encrypt it?  No problem:
+
+  alice_pub, alice_sec = NaCl.crypto_sign_keypair
+
+  # Alice sends Bob her public key.
+  # Now Alice can make a message for Bob:
+
+  signed_text = NaCl.crypto_sign("Meet me at the park at midnight", alice_sec)
+
+  # Alice then sends [signed_text, nonce] to Bob and he can validate the signature:
+
+  NaCl.crypto_sign_open(signed_text, alice_pub) # => "Meet me at the park at midnight"
+
+  NaCl.crypto_sign_open(signed_text.gsub("park", "bus stop"), alice_pub) # raises NaCl::OpenError
+
+=== Secret-key Authenticated Encryption
+
+Secret key encryption requires that the two parties share a key beforehand using some secure channel.
+
+  key = SecureRandom.random_bytes(NaCl::SECRETBOX_KEY_LENGTH)
+
+  # Alice and Bob share the key by some secure means.
+  # Now Alice can make a message for Bob:
+
+  nonce = SecureRandom.random_bytes(NaCl::BOX_NONCE_LENGTH)
+  ciphertext = NaCl.crypto_secretbox("Meet me at the park at midnight", nonce, key)
+
+  # Alice then sends [ciphertext, nonce] to Bob and he can decrypt:
+
+  NaCl.crypto_secretbox_open(ciphertext, nonce, key) # => "Meet me at the park at midnght"
+
+== Licence
+
+This wrapper library licensed under the MIT licence.  Copyright 2012 Roger Nesbitt.
