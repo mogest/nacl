@@ -9,7 +9,7 @@ end
 
 spec = Gem::Specification.new do |s|
   s.name = "nacl"
-  s.version = "0.1"
+  s.version = "0.2"
   s.summary = "Ruby wrapper around djb's NaCl networking and cryptography library"
   s.author = "Roger Nesbitt"
   s.email = "roger@seriousorange.com"

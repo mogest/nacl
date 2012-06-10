@@ -2,7 +2,7 @@
 
 A library that wraps part of djb's NaCl "networking and cryptography" library.
 
-Find out more about that project at http://nacl.cace-project.eu/.
+Find out more about that project at http://nacl.cace-project.eu.
 
 == Prerequisites
 
@@ -20,7 +20,7 @@ You must first install the NaCl C library before installing the gem.  If you use
 
 === Public-key Authenticated Encryption
 
-Want to provide <b>authenticated encryption</b>?  Easy:
+Want to provide authenticated encryption?  Easy:
 
   alice_pub, alice_sec = NaCl.crypto_box_keypair
   bob_pub, bob_sec = NaCl.crypto_box_keypair
@@ -49,7 +49,6 @@ Just want to sign the text, but not encrypt it?  No problem:
   # Alice then sends [signed_text, nonce] to Bob and he can validate the signature:
 
   NaCl.crypto_sign_open(signed_text, alice_pub) # => "Meet me at the park at midnight"
-
   NaCl.crypto_sign_open(signed_text.gsub("park", "bus stop"), alice_pub) # raises NaCl::OpenError
 
 === Secret-key Authenticated Encryption
