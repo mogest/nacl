@@ -1,6 +1,7 @@
 #include <ruby.h>
 #include <crypto_box.h>
 #include <crypto_sign.h>
+#include <crypto_secretbox.h>
 #include <crypto_hash.h>
 #include <crypto_hash_sha256.h>
 #include <crypto_hash_sha512.h>
@@ -47,7 +48,6 @@ VALUE method_crypto_box(VALUE self, VALUE message, VALUE nonce, VALUE pk, VALUE 
     int n;
 
     Check_Type(message, T_STRING);
-    Check_Type(nonce, T_STRING);
     CHECK_STRING_LENGTH(nonce, crypto_box_NONCEBYTES);
     CHECK_STRING_LENGTH(pk, crypto_box_PUBLICKEYBYTES);
     CHECK_STRING_LENGTH(sk, crypto_box_SECRETKEYBYTES);
@@ -140,6 +140,52 @@ VALUE method_crypto_sign_open(VALUE self, VALUE signed_message, VALUE pk) {
 
 /**********************************************************************************/
 
+VALUE method_crypto_secretbox(VALUE self, VALUE message, VALUE nonce, VALUE key) {
+    char *padded_message, *result;
+    VALUE return_value;
+    unsigned long long mlen;
+    int n;
+
+    Check_Type(message, T_STRING);
+    CHECK_STRING_LENGTH(nonce, crypto_secretbox_NONCEBYTES);
+    CHECK_STRING_LENGTH(key, crypto_secretbox_KEYBYTES);
+
+    mlen = allocate_and_prepend_zeros(message, crypto_secretbox_ZEROBYTES, &padded_message, &result);
+    n = crypto_secretbox(result, padded_message, mlen, RSTRING_PTR(nonce), RSTRING_PTR(key));
+
+    if (n == 0) return_value = rb_str_new(result + crypto_secretbox_BOXZEROBYTES, mlen - crypto_secretbox_BOXZEROBYTES);
+    memset(padded_message, 0, mlen);
+    free(result);
+    free(padded_message);
+    if (n != 0) rb_raise(rb_eRuntimeError, "crypto_secretbox failed");
+    return return_value;
+}
+
+VALUE method_crypto_secretbox_open(VALUE self, VALUE ciphertext, VALUE nonce, VALUE key) {
+    char *p, *padded_ciphertext, *result;
+    VALUE return_value;
+    unsigned long long mlen;
+    int n;
+
+    Check_Type(ciphertext, T_STRING);
+    if (RSTRING_LEN(ciphertext) < crypto_secretbox_ZEROBYTES - crypto_secretbox_BOXZEROBYTES) rb_raise(rb_eArgError, "ciphertext must be at least %d bytes long", crypto_secretbox_ZEROBYTES - crypto_secretbox_BOXZEROBYTES);
+    CHECK_STRING_LENGTH(nonce, crypto_secretbox_NONCEBYTES);
+    CHECK_STRING_LENGTH(key, crypto_secretbox_KEYBYTES);
+
+    mlen = allocate_and_prepend_zeros(ciphertext, crypto_secretbox_BOXZEROBYTES, &padded_ciphertext, &result);
+    n = crypto_secretbox_open(result, padded_ciphertext, mlen, RSTRING_PTR(nonce), RSTRING_PTR(key));
+
+    if (n == 0) return_value = rb_str_new(result + crypto_secretbox_ZEROBYTES, mlen - crypto_secretbox_ZEROBYTES);
+    memset(result, 0, mlen);
+    free(padded_ciphertext);
+    free(result);
+    if (n != 0) rb_raise(OpenError, "crypto_secretbox_open failed");
+    return return_value;
+}
+
+
+/**********************************************************************************/
+
 VALUE method_crypto_hash(VALUE self, VALUE data) {
     unsigned char h[crypto_hash_BYTES];
     Check_Type(data, T_STRING);
@@ -172,6 +218,11 @@ void Init_nacl() {
     rb_define_module_function(NaCl, "crypto_sign_keypair", method_crypto_sign_keypair, 0);
     rb_define_module_function(NaCl, "crypto_sign", method_crypto_sign, 2);
     rb_define_module_function(NaCl, "crypto_sign_open", method_crypto_sign_open, 2);
+
+    rb_define_module_function(NaCl, "crypto_secretbox", method_crypto_secretbox, 3);
+    rb_define_module_function(NaCl, "crypto_secretbox_open", method_crypto_secretbox_open, 3);
+    rb_define_const(NaCl, "SECRETBOX_NONCE_LENGTH", INT2FIX(crypto_secretbox_NONCEBYTES));
+    rb_define_const(NaCl, "SECRETBOX_KEY_LENGTH", INT2FIX(crypto_secretbox_KEYBYTES));
 
     rb_define_module_function(NaCl, "crypto_hash", method_crypto_hash, 1);
     rb_define_module_function(NaCl, "crypto_hash_sha256", method_crypto_hash_sha256, 1);

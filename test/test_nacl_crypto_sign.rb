@@ -49,4 +49,3 @@ class TestNaclCryptoSign < Test::Unit::TestCase
     end
   end
 end
-
